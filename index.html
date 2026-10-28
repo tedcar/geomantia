@@ -657,8 +657,8 @@ function updateBar(msg){
   const on = TOUCH && screen==='casting' && C.mode==='casting' && C.line<16;
   bar.classList.toggle('on', on); bar.classList.toggle('demo', !!C.demo);
   if(!on) return;
-  $('#lb1').textContent = `Line ${ROMAN[C.line+1]} of XVI · ${FINGERS[C.line%4]}`;
-  const l2=$('#lb2'); l2.textContent = msg || `${MOTHERS[Math.floor(C.line/4)]} · pricks run right to left`; l2.classList.toggle('warn', !!msg);
+  $('#lb1').textContent = `Line ${ROMAN[C.line+1]} · ${FINGERS[C.line%4].replace(' finger','')}`;
+  const l2=$('#lb2'); l2.textContent = msg || `${MOTHERS[Math.floor(C.line/4)]} · of sixteen · right to left`; l2.classList.toggle('warn', !!msg);
   $('#lbNext').textContent = C.line===15 ? 'Seal it' : 'Next line';
 }
 function dotPos(d){ return {x:d.fx*C.L.w, y:C.L.ys[d.line] + d.jy*C.L.gap}; }
@@ -1212,6 +1212,19 @@ function markdownOf(rec){
   return m;
 }
 function fileBase(rec){ const d=new Date(rec.epoch), p=stampParts(d); return `geomancy_${p.date}_${p.hm}_${slug(rec.title)}`; }
+/* hand a file to the person: on a phone the share sheet (Save to Files lets them choose the folder, or AirDrop, Mail, Messages), elsewhere a download */
+async function giveFile(name, text, type){
+  if(TOUCH && navigator.share && window.File){
+    try{ const f=new File([text], name, {type}); if(!navigator.canShare || navigator.canShare({files:[f]})){ await navigator.share({files:[f], title:name}); return 'shared'; } }
+    catch(e){ if(e && e.name==='AbortError') return 'cancelled'; }
+  }
+  download(name, text, type); return 'downloaded';
+}
+function mergeBook(list){
+  const have=new Set(book().map(c=>c.id)); let added=0; const b=book();
+  (Array.isArray(list)?list:[list]).forEach(c=>{ if(c && c.id && Array.isArray(c.counts) && c.counts.length===16 && !have.has(c.id)){ b.push(c); have.add(c.id); added++; } });
+  b.sort((x,y)=>(y.epoch||0)-(x.epoch||0)); store.set('geomancy.book', b.slice(0,400)); return added;
+}
 function download(name, text, type){ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([text],{type})); a.download=name; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 2000); }
 async function saveCast(){
   if(!cast || !result) return; if(cast.demo){ toast('This is the demonstration: nothing to save.'); return; }
@@ -1224,7 +1237,7 @@ async function saveCast(){
       if(!navigator.canShare || navigator.canShare({files:[f]})){
         await navigator.share({files:[f], title:rec.title});
         cast.saved={at:new Date().toISOString(), where:'the share sheet', file:base+'.md'}; autosaveToBook();
-        toast(`Shared as <b>${esc(base)}.md</b>.<br>Put it in <b>01_Augur/geomancy/casts</b> (Save to Files, or AirDrop), then say: <i>“judge the geomancy ‘${esc(cast.title)}’”</i>.`, 10000);
+        toast(`Shared as <b>${esc(base)}.md</b>.<br>In the share sheet choose <b>Save to Files</b> and pick any folder you like (or AirDrop it to the Mac), then say: <i>“judge the geomancy ‘${esc(cast.title)}’”</i>.`, 10000);
         return;
       }
     }catch(e){ if(e && e.name==='AbortError'){ toast('Not saved: the share sheet was closed. The figure is still in the book.', 4200); return; } }
@@ -1288,11 +1301,14 @@ function bookSheet(){
   let h=`<h2>The book of casts</h2><p class="small">Kept in this browser. Saved files go to your casts folder or Downloads.</p>`;
   if(!b.length) h+=`<p class="q">No figures yet.</p>`;
   else h+=`<ul class="book-list">${b.map(c=>`<li data-id="${esc(c.id)}"><span class="bd">${esc(c.created.slice(0,10))} ${esc(c.created.slice(11,16))}</span><span class="bt">${esc(c.title)}</span><span class="bj">${esc(c.judge||'')}</span></li>`).join('')}</ul>`;
-  h+=`<div class="btns"><button id="bExport">Export all (JSON)</button><button id="bFolder">Choose the casts folder</button><button id="bClose">Close</button></div>`;
+  h+=`<p class="small" style="margin-top:12px">Every cast is kept in this browser automatically. To keep a copy of the whole book anywhere you like (Files, iCloud Drive, AirDrop, Mail), use <b>Share the whole book</b>.</p>`;
+  h+=`<div class="btns">${b.length?'<button class="prime" id="bExport">Share the whole book</button>':''}<button id="bImport">Restore from a file</button>${(window.showDirectoryPicker&&!TOUCH)?'<button id="bFolder">Choose the casts folder</button>':''}<button id="bClose">Close</button></div><input type="file" id="bFile" accept=".json,application/json" multiple style="display:none">`;
   sheet(h);
   $$('.book-list li').forEach(li=>li.onclick=()=>{ const c=book().find(x=>x.id===li.dataset.id); closeSheet(); if(c) openFromBook(c); });
-  $('#bExport').onclick=()=>download(`geomancy_book_${stampParts(new Date()).date}.json`, JSON.stringify(book(),null,1), 'application/json');
-  $('#bFolder').onclick=async()=>{ if(!window.showDirectoryPicker){ toast('This browser cannot write to a folder; saves go to Downloads.'); return; } try{ const dir=await window.showDirectoryPicker({id:'augur-geomancy-casts',mode:'readwrite',startIn:'documents'}); await idb.set('dir',dir); toast(`Casts will be saved to “${esc(dir.name)}”.`); }catch(e){} };
+  if($('#bExport')) $('#bExport').onclick=async()=>{ const r=await giveFile(`geomancy_book_${stampParts(new Date()).date}.json`, JSON.stringify(book(),null,1), 'application/json'); toast(r==='cancelled'?'Not shared.':(r==='shared'?'The whole book was handed to the share sheet.':'The whole book was downloaded.'),3500); };
+  $('#bImport').onclick=()=>$('#bFile').click();
+  $('#bFile').onchange=async e=>{ let n=0; for(const f of e.target.files){ try{ n+=mergeBook(JSON.parse(await f.text())); }catch(x){} } toast(n?`Restored ${n} cast${n>1?'s':''} to the book.`:'Nothing new in that file.',3500); if(n) bookSheet(); };
+  if($('#bFolder')) $('#bFolder').onclick=async()=>{ try{ const dir=await window.showDirectoryPicker({id:'augur-geomancy-casts',mode:'readwrite',startIn:'documents'}); await idb.set('dir',dir); toast(`Casts will be saved to “${esc(dir.name)}”.`); }catch(e){} };
   $('#bClose').onclick=closeSheet;
 }
 function openFromBook(c){
