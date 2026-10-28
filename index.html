@@ -171,6 +171,20 @@ h1.t{font-family:var(--sc);font-weight:400;font-size:clamp(40px,7vw,68px);letter
 .touch .chip{padding:9px 7px;min-height:40px}
 .ph{--faded:#65503a;--ink2:#3d2a19}
 .touch #fQ{resize:none;min-height:104px}
+/* the phone's first screen: everything within reach without a scroll (Safari's floating toolbar hides the bottom ~100px) */
+.touch #threshold .col{display:flex;flex-direction:column;padding-bottom:calc(120px + var(--sab))}
+.touch #orn{order:-5;width:58px;height:58px;margin-bottom:0}
+.touch h1.t{order:-4;font-size:38px}
+.touch .sub{order:-3;margin:.1em 0 .5em;font-size:15px}
+.touch .links{order:-2;margin:0 0 10px;gap:2px 4px;border-bottom:1px solid rgba(60,40,20,.18);padding-bottom:6px}
+.touch .links button,.touch .links a{font-size:15px;padding:8px 8px;min-height:38px}
+.touch .field{margin:0 0 10px}
+.touch #fQ{min-height:78px}
+.touch .chips{margin:0}
+.touch .caution{order:5;margin:6px 0 0;font-size:14.5px}
+.touch .row-begin{order:4}
+.touch .row-begin{margin:12px 0 6px}
+.touch #begin{width:88px;height:88px;font-size:19px}
 .touch .caution{font-size:15.5px}
 .touch .links{gap:6px 6px}
 .touch .links button,.touch .links a{padding:10px 12px;border-bottom:0;min-height:42px;display:inline-flex;align-items:center}
